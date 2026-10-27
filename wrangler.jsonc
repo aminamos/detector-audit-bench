@@ -16,7 +16,7 @@
     {
       "binding": "DB",
       "database_name": "detector-audit-bench",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "5a81252c-79b1-4293-a815-c8f7c549518f",
       "migrations_dir": "migrations"
     }
   ]
