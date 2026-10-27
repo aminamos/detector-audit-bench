@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Audit AI text detectors on civic and legal documents, sliced by era, source, and length.">
+  <title>Detector Audit Bench</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#report-heading">Skip to report</a>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div>
+        <h1>Detector Audit Bench</h1>
+        <p class="tagline">Audit AI detectors on real civic &amp; legal text — false positives sliced by era, source, and length.</p>
+      </div>
+      <p class="health" id="health-status" role="status">Checking API…</p>
+    </div>
+
+    <div class="run-bar" aria-label="Run selection">
+      <label for="run-select">Run</label>
+      <select id="run-select" name="run-select">
+        <option value="">No runs yet</option>
+      </select>
+      <button type="button" id="refresh-runs-btn" class="btn btn-secondary">Refresh runs</button>
+
+      <form id="create-run-form" class="create-run">
+        <label for="new-run-name">New run name</label>
+        <input id="new-run-name" name="new-run-name" type="text" autocomplete="off" placeholder="e.g. MN laws audit" required>
+        <button type="submit" class="btn btn-primary">Create run</button>
+      </form>
+    </div>
+  </header>
+
+  <div id="global-error" class="banner banner-error" role="alert" hidden></div>
+  <div id="global-status" class="banner banner-status" role="status" aria-live="polite" hidden></div>
+
+  <div class="layout">
+    <aside class="panel panel-left" aria-labelledby="add-doc-heading">
+      <section>
+        <h2 id="add-doc-heading">Add documents</h2>
+        <p class="hint">Paste one document at a time. Documents under 50 words are rejected.</p>
+
+        <form id="add-doc-form" novalidate>
+          <div class="field">
+            <label for="doc-title">Title</label>
+            <input id="doc-title" name="title" type="text" autocomplete="off" placeholder="Document title">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="doc-era">Era</label>
+              <input id="doc-era" name="era" type="text" autocomplete="off" placeholder="e.g. 1890s">
+            </div>
+            <div class="field">
+              <label for="doc-source">Source</label>
+              <input id="doc-source" name="source" type="text" autocomplete="off" placeholder="e.g. MN Laws">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="doc-slice">Slice <span class="optional">(optional)</span></label>
+              <input id="doc-slice" name="slice" type="text" autocomplete="off" placeholder="e.g. statutes">
+            </div>
+            <div class="field">
+              <label for="doc-label">Label</label>
+              <select id="doc-label" name="label" required>
+                <option value="human">Human</option>
+                <option value="ai">AI</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="doc-text">Document text</label>
+            <textarea id="doc-text" name="text" rows="10" required aria-describedby="doc-word-count doc-validation"></textarea>
+            <p id="doc-word-count" class="word-count" aria-live="polite">0 words</p>
+            <p id="doc-validation" class="validation" role="alert" hidden></p>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block" id="add-doc-btn">Add document</button>
+        </form>
+
+        <button type="button" id="demo-btn" class="btn btn-secondary btn-block" hidden>Load demo corpus</button>
+        <p id="demo-status" class="hint" aria-live="polite"></p>
+      </section>
+
+      <section aria-labelledby="actions-heading">
+        <h2 id="actions-heading">Actions</h2>
+        <p class="hint">Select a document below, then generate matched AI and mixed-authorship counterfactuals. Scoring sends every document in the run to the configured detector.</p>
+        <button type="button" id="generate-btn" class="btn btn-primary btn-block">Generate counterfactuals (Meta)</button>
+        <button type="button" id="score-btn" class="btn btn-primary btn-block">Score with detector</button>
+        <button type="button" id="refresh-report-btn" class="btn btn-secondary btn-block">Refresh report</button>
+        <p id="action-status" class="action-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section aria-labelledby="doc-list-heading">
+        <h2 id="doc-list-heading">Documents <span id="doc-count" class="count"></span></h2>
+        <p id="doc-list-empty" class="hint">No run selected, or no documents in this run yet.</p>
+        <ul id="doc-list" class="doc-list"></ul>
+      </section>
+    </aside>
+
+    <main class="panel panel-main">
+      <h2 id="report-heading" tabindex="-1">Report</h2>
+      <p id="report-empty" class="hint">Create or select a run to see its report. Score documents to populate detector metrics.</p>
+
+      <section aria-labelledby="summary-heading">
+        <h3 id="summary-heading">Summary</h3>
+        <dl class="cards" id="summary-cards">
+          <div class="card"><dt>Documents</dt><dd id="sum-documents">—</dd></div>
+          <div class="card"><dt>Scored</dt><dd id="sum-scored">—</dd></div>
+          <div class="card"><dt>Predictions</dt><dd id="sum-predictions">—</dd></div>
+          <div class="card"><dt>False positives / 1000 humans</dt><dd id="sum-fp1000">—</dd></div>
+          <div class="card"><dt>Recall @ 1% FPR</dt><dd id="sum-recall">—</dd></div>
+        </dl>
+      </section>
+
+      <section aria-labelledby="slices-heading">
+        <h3 id="slices-heading">Slices</h3>
+        <p id="slices-empty" class="hint">No slice data yet.</p>
+        <div id="slice-tables"></div>
+      </section>
+
+      <section aria-labelledby="results-heading">
+        <h3 id="results-heading">Per-document results</h3>
+        <p id="results-empty" class="hint">No documents to show.</p>
+        <div class="table-wrap">
+          <table id="results-table" hidden>
+            <caption class="sr-only">Per-document detector results for the selected run</caption>
+            <thead>
+              <tr>
+                <th scope="col">Title</th>
+                <th scope="col">Label</th>
+                <th scope="col">AI %</th>
+                <th scope="col">Era / Source</th>
+                <th scope="col">Words</th>
+                <th scope="col">Prediction</th>
+                <th scope="col">Fraction AI</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <p>Detector Audit Bench — scores come only from the configured detector API; nothing is estimated in the browser.</p>
+  </footer>
+</body>
+</html>
